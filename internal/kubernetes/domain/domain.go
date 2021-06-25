@@ -80,7 +80,11 @@ func (c *CreateDNSRecordConfig) NewDNSRecordForEndpoint() *models.DNSRecord {
 	}
 }
 
-func (e *DNSRecord) CreateDomain(clientset kubernetes.Interface) error {
+func (e *DNSRecord) CreateDomain(clientset kubernetes.Interface, forbiddenNetworks ...string) error {
+	if !IsEndpointAllowed(e.Endpoint, forbiddenNetworks...) {
+		return fmt.Errorf("Unauthorized to create endpoint with given IP address")
+	}
+
 	// determine if IP address or domain
 	err := e.createIngress(clientset)
 
@@ -223,4 +227,45 @@ func (e *DNSRecord) createServiceWithEndpoint(clientset kubernetes.Interface) er
 	}
 
 	return err
+}
+
+// IsEndpointAllowed checks if the endpoint is external to the networks, which are
+// given by a slice of CIDR ranges.
+func IsEndpointAllowed(endpoint string, forbiddenNetworks ...string) bool {
+	ipParsed := net.ParseIP(endpoint)
+	isIPv4 := ipParsed != nil
+
+	if !isIPv4 {
+		ips, _ := net.LookupIP(endpoint)
+
+		res := true
+
+		for _, ip := range ips {
+			if ipv4 := ip.To4(); ipv4 != nil {
+				res = res && isIPAllowed(ipv4, forbiddenNetworks...)
+			}
+		}
+
+		return res
+	}
+
+	return isIPAllowed(ipParsed, forbiddenNetworks...)
+}
+
+// isIPAllowed returns true if the IP address is not contained in the specified CIDR ranges,
+// false otherwise
+func isIPAllowed(ip net.IP, forbiddenNetworks ...string) bool {
+	for _, network := range forbiddenNetworks {
+		_, ipNet, err := net.ParseCIDR(network)
+
+		if err != nil {
+			return false
+		}
+
+		if ipNet.Contains(ip) {
+			return false
+		}
+	}
+
+	return true
 }
