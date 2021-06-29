@@ -45,6 +45,20 @@ const createAWSIntegration = baseApi<
   return `/api/projects/${pathParams.id}/integrations/aws`;
 });
 
+const overwriteAWSIntegration = baseApi<
+  {
+    aws_access_key_id: string;
+    aws_secret_access_key: string;
+  },
+  {
+    projectID: number;
+    awsIntegrationID: number;
+    cluster_id: number;
+  }
+>("POST", (pathParams) => {
+  return `/api/projects/${pathParams.projectID}/integrations/aws/${pathParams.awsIntegrationID}/overwrite?cluster_id=${pathParams.cluster_id}`;
+});
+
 const createDOCR = baseApi<
   {
     do_integration_id: number;
@@ -278,6 +292,27 @@ const deployTemplate = baseApi<
   return `/api/projects/${id}/deploy/${name}/${version}?cluster_id=${cluster_id}`;
 });
 
+const deployAddon = baseApi<
+  {
+    templateName: string;
+    formValues?: any;
+    storage: StorageType;
+    namespace: string;
+    name: string;
+  },
+  {
+    id: number;
+    cluster_id: number;
+    name: string;
+    version: string;
+    repo_url?: string;
+  }
+>("POST", (pathParams) => {
+  let { cluster_id, id, name, version, repo_url } = pathParams;
+
+  return `/api/projects/${id}/deploy/addon/${name}/${version}?cluster_id=${cluster_id}&repo_url=${repo_url}`;
+});
+
 const destroyCluster = baseApi<
   {
     eks_name: string;
@@ -288,6 +323,20 @@ const destroyCluster = baseApi<
   }
 >("POST", (pathParams) => {
   return `/api/projects/${pathParams.project_id}/infra/${pathParams.infra_id}/eks/destroy`;
+});
+
+const detectBuildpack = baseApi<
+  {},
+  {
+    project_id: number;
+    git_repo_id: number;
+    kind: string;
+    owner: string;
+    name: string;
+    branch: string;
+  }
+>("GET", (pathParams) => {
+  return `/api/projects/${pathParams.project_id}/gitrepos/${pathParams.git_repo_id}/repos/${pathParams.kind}/${pathParams.owner}/${pathParams.name}/${pathParams.branch}/buildpack/detect`;
 });
 
 const getBranchContents = baseApi<
@@ -388,6 +437,39 @@ const getClusterIntegrations = baseApi("GET", "/api/integrations/cluster");
 const getClusters = baseApi<{}, { id: number }>("GET", (pathParams) => {
   return `/api/projects/${pathParams.id}/clusters`;
 });
+
+const getCluster = baseApi<
+  {},
+  {
+    project_id: number;
+    cluster_id: number;
+  }
+>("GET", (pathParams) => {
+  return `/api/projects/${pathParams.project_id}/clusters/${pathParams.cluster_id}`;
+});
+
+const getClusterNodes = baseApi<
+  {},
+  {
+    project_id: number;
+    cluster_id: number;
+  }
+>("GET", (pathParams) => {
+  return `/api/projects/${pathParams.project_id}/clusters/${pathParams.cluster_id}/nodes`;
+});
+
+const getClusterNode = baseApi<
+  {},
+  {
+    project_id: number;
+    cluster_id: number;
+    nodeName: string;
+  }
+>(
+  "GET",
+  (pathParams) =>
+    `/api/projects/${pathParams.project_id}/clusters/${pathParams.cluster_id}/node/${pathParams.nodeName}`
+);
 
 const getGitRepoList = baseApi<
   {},
@@ -798,6 +880,35 @@ const deleteConfigMap = baseApi<
   return `/api/projects/${pathParams.id}/k8s/configmap/delete`;
 });
 
+const createNamespace = baseApi<
+  {
+    name: string;
+  },
+  { id: number; cluster_id: number }
+>("POST", (pathParams) => {
+  let { id, cluster_id } = pathParams;
+  return `/api/projects/${id}/k8s/namespaces/create?cluster_id=${cluster_id}`;
+});
+
+const deleteNamespace = baseApi<
+  {
+    name: string;
+    cluster_id: number;
+  },
+  { id: number }
+>("DELETE", (pathParams) => {
+  let { id } = pathParams;
+  return `/api/projects/${id}/k8s/namespaces/delete`;
+});
+
+const deleteJob = baseApi<
+  { cluster_id: number },
+  { name: string; namespace: string; id: number }
+>("DELETE", (pathParams) => {
+  let { id, name, namespace } = pathParams;
+  return `/api/projects/${id}/k8s/jobs/${namespace}/${name}`;
+});
+
 const stopJob = baseApi<
   {},
   { name: string; namespace: string; id: number; cluster_id: number }
@@ -812,6 +923,7 @@ export default {
   connectECRRegistry,
   connectGCRRegistry,
   createAWSIntegration,
+  overwriteAWSIntegration,
   createDOCR,
   createDOKS,
   createEmailVerification,
@@ -820,6 +932,7 @@ export default {
   createGHAction,
   createGKE,
   createInvite,
+  createNamespace,
   createPasswordReset,
   createPasswordResetVerify,
   createPasswordResetFinalize,
@@ -829,14 +942,17 @@ export default {
   deleteConfigMap,
   deleteGitRepoIntegration,
   deleteInvite,
+  deleteNamespace,
   deletePod,
   deleteProject,
   deleteRegistryIntegration,
   createSubdomain,
   deployTemplate,
+  deployAddon,
   destroyEKS,
   destroyGKE,
   destroyDOKS,
+  detectBuildpack,
   getBranchContents,
   getBranches,
   getCapabilities,
@@ -846,6 +962,9 @@ export default {
   getChartControllers,
   getClusterIntegrations,
   getClusters,
+  getCluster,
+  getClusterNodes,
+  getClusterNode,
   getConfigMap,
   getGitRepoList,
   getGitRepos,
@@ -888,5 +1007,6 @@ export default {
   updateUser,
   updateConfigMap,
   upgradeChartValues,
+  deleteJob,
   stopJob,
 };

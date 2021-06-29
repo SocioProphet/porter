@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/porter-dev/porter/internal/auth/token"
 	"github.com/porter-dev/porter/server/api"
-	"github.com/porter-dev/porter/server/requestlog"
-	mw "github.com/porter-dev/porter/server/router/middleware"
+	mw "github.com/porter-dev/porter/server/middleware"
+	"github.com/porter-dev/porter/server/middleware/requestlog"
 )
 
 // New creates a new Chi router instance and registers all routes supported by the
@@ -55,11 +55,20 @@ func New(a *api.App) *chi.Mux {
 				),
 			)
 
-			r.Method(
-				"POST",
-				"/users",
-				requestlog.NewHandler(a.HandleCreateUser, l),
-			)
+			// only allow basic create user or basic login if BasicLogin feature is set
+			if a.Capabilities.BasicLogin {
+				r.Method(
+					"POST",
+					"/users",
+					requestlog.NewHandler(a.HandleCreateUser, l),
+				)
+
+				r.Method(
+					"POST",
+					"/login",
+					requestlog.NewHandler(a.HandleLoginUser, l),
+				)
+			}
 
 			r.Method(
 				"DELETE",
@@ -82,12 +91,6 @@ func New(a *api.App) *chi.Mux {
 				"GET",
 				"/cli/login/exchange",
 				requestlog.NewHandler(a.HandleCLILoginExchangeToken, l),
-			)
-
-			r.Method(
-				"POST",
-				"/login",
-				requestlog.NewHandler(a.HandleLoginUser, l),
 			)
 
 			r.Method(
@@ -210,6 +213,18 @@ func New(a *api.App) *chi.Mux {
 				"GET",
 				"/oauth/github/callback",
 				requestlog.NewHandler(a.HandleGithubOAuthCallback, l),
+			)
+
+			r.Method(
+				"GET",
+				"/oauth/login/google",
+				requestlog.NewHandler(a.HandleGoogleStartUser, l),
+			)
+
+			r.Method(
+				"GET",
+				"/oauth/google/callback",
+				requestlog.NewHandler(a.HandleGoogleOAuthCallback, l),
 			)
 
 			r.Method(
@@ -585,6 +600,34 @@ func New(a *api.App) *chi.Mux {
 			)
 
 			r.Method(
+				"GET",
+				"/projects/{project_id}/clusters/{cluster_id}/nodes",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleListNodes, l),
+						mw.URLParam,
+						mw.URLParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"GET",
+				"/projects/{project_id}/clusters/{cluster_id}/node/{node_name}",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleGetNode, l),
+						mw.URLParam,
+						mw.URLParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
 				"POST",
 				"/projects/{project_id}/clusters/{cluster_id}",
 				auth.DoesUserHaveProjectAccess(
@@ -659,6 +702,25 @@ func New(a *api.App) *chi.Mux {
 				"/projects/{project_id}/integrations/aws",
 				auth.DoesUserHaveProjectAccess(
 					requestlog.NewHandler(a.HandleCreateAWSIntegration, l),
+					mw.URLParam,
+					mw.WriteAccess,
+				),
+			)
+
+			r.Method(
+				"POST",
+				"/projects/{project_id}/integrations/aws/{aws_integration_id}/overwrite",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						auth.DoesUserHaveAWSIntegrationAccess(
+							requestlog.NewHandler(a.HandleOverwriteAWSIntegration, l),
+							mw.URLParam,
+							mw.URLParam,
+							false,
+						),
+						mw.URLParam,
+						mw.QueryParam,
+					),
 					mw.URLParam,
 					mw.WriteAccess,
 				),
@@ -767,6 +829,20 @@ func New(a *api.App) *chi.Mux {
 				auth.DoesUserHaveProjectAccess(
 					auth.DoesUserHaveRegistryAccess(
 						requestlog.NewHandler(a.HandleUpdateProjectRegistry, l),
+						mw.URLParam,
+						mw.URLParam,
+					),
+					mw.URLParam,
+					mw.WriteAccess,
+				),
+			)
+
+			r.Method(
+				"POST",
+				"/projects/{project_id}/registries/{registry_id}/repository",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveRegistryAccess(
+						requestlog.NewHandler(a.HandleCreateRepository, l),
 						mw.URLParam,
 						mw.URLParam,
 					),
@@ -1015,6 +1091,20 @@ func New(a *api.App) *chi.Mux {
 
 			r.Method(
 				"GET",
+				"/projects/{project_id}/gitrepos/{git_repo_id}/repos/{kind}/{owner}/{name}/{branch}/buildpack/detect",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveGitRepoAccess(
+						requestlog.NewHandler(a.HandleDetectBuildpack, l),
+						mw.URLParam,
+						mw.URLParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"GET",
 				"/projects/{project_id}/gitrepos/{git_repo_id}/repos/{kind}/{owner}/{name}/{branch}/contents",
 				auth.DoesUserHaveProjectAccess(
 					auth.DoesUserHaveGitRepoAccess(
@@ -1041,6 +1131,20 @@ func New(a *api.App) *chi.Mux {
 				),
 			)
 
+			r.Method(
+				"GET",
+				"/projects/{project_id}/gitrepos/{git_repo_id}/repos/{kind}/{owner}/{name}/{branch}/tarball_url",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveGitRepoAccess(
+						requestlog.NewHandler(a.HandleGetRepoZIPDownloadURL, l),
+						mw.URLParam,
+						mw.URLParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
 			// /api/projects/{project_id}/k8s routes
 			r.Method(
 				"GET",
@@ -1048,6 +1152,34 @@ func New(a *api.App) *chi.Mux {
 				auth.DoesUserHaveProjectAccess(
 					auth.DoesUserHaveClusterAccess(
 						requestlog.NewHandler(a.HandleListNamespaces, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"POST",
+				"/projects/{project_id}/k8s/namespaces/create",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleCreateNamespace, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"DELETE",
+				"/projects/{project_id}/k8s/namespaces/delete",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleDeleteNamespace, l),
 						mw.URLParam,
 						mw.QueryParam,
 					),
@@ -1184,6 +1316,20 @@ func New(a *api.App) *chi.Mux {
 
 			r.Method(
 				"GET",
+				"/projects/{project_id}/k8s/helm_releases",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleStreamHelmReleases, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"GET",
 				"/projects/{project_id}/k8s/pods",
 				auth.DoesUserHaveProjectAccess(
 					auth.DoesUserHaveClusterAccess(
@@ -1295,6 +1441,20 @@ func New(a *api.App) *chi.Mux {
 			)
 
 			r.Method(
+				"DELETE",
+				"/projects/{project_id}/k8s/jobs/{namespace}/{name}",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleDeleteJob, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.WriteAccess,
+				),
+			)
+
+			r.Method(
 				"POST",
 				"/projects/{project_id}/k8s/jobs/{namespace}/{name}/stop",
 				auth.DoesUserHaveProjectAccess(
@@ -1337,6 +1497,20 @@ func New(a *api.App) *chi.Mux {
 				auth.DoesUserHaveProjectAccess(
 					auth.DoesUserHaveClusterAccess(
 						requestlog.NewHandler(a.HandleDeployTemplate, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"POST",
+				"/projects/{project_id}/deploy/addon/{name}/{version}",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleDeployAddon, l),
 						mw.URLParam,
 						mw.QueryParam,
 					),
@@ -1395,6 +1569,20 @@ func New(a *api.App) *chi.Mux {
 					),
 					mw.URLParam,
 					mw.ReadAccess,
+				),
+			)
+
+			r.Method(
+				"POST",
+				"/projects/{project_id}/releases/image/update/batch",
+				auth.DoesUserHaveProjectAccess(
+					auth.DoesUserHaveClusterAccess(
+						requestlog.NewHandler(a.HandleReleaseUpdateJobImages, l),
+						mw.URLParam,
+						mw.QueryParam,
+					),
+					mw.URLParam,
+					mw.WriteAccess,
 				),
 			)
 		})

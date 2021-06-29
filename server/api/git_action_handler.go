@@ -139,6 +139,17 @@ func (app *App) createGitActionFromForm(
 
 	userID, _ := session.Values["user_id"].(uint)
 
+	if userID == 0 {
+		tok := app.getTokenFromRequest(r)
+
+		if tok != nil && tok.IBy != 0 {
+			userID = tok.IBy
+		} else if tok == nil || tok.IBy == 0 {
+			http.Error(w, "no user id found in request", http.StatusInternalServerError)
+			return nil
+		}
+	}
+
 	// generate porter jwt token
 	jwt, _ := token.GetTokenForAPI(userID, uint(projID))
 
@@ -153,6 +164,7 @@ func (app *App) createGitActionFromForm(
 
 	// create the commit in the git repo
 	gaRunner := &actions.GithubActions{
+		ServerURL:      app.ServerConf.ServerURL,
 		GitIntegration: gr,
 		GitRepoName:    repoSplit[1],
 		GitRepoOwner:   repoSplit[0],
@@ -185,6 +197,16 @@ func (app *App) createGitActionFromForm(
 	}
 
 	app.Logger.Info().Msgf("New git action created: %d", ga.ID)
+
+	// update the release in the db with the image repo uri
+	release.ImageRepoURI = gitAction.ImageRepoURI
+
+	_, err = app.Repo.Release.UpdateRelease(release)
+
+	if err != nil {
+		app.handleErrorDataWrite(err, w)
+		return nil
+	}
 
 	return ga.Externalize()
 }

@@ -6,8 +6,9 @@ import { RouteComponentProps, withRouter } from "react-router";
 
 import api from "shared/api";
 import { Context } from "shared/Context";
+import { pushFiltered } from "shared/routing";
 
-import hardcodedNames from "../hardcodedNameDict";
+import { hardcodedNames } from "shared/hardcodedNameDict";
 import SourcePage from "./SourcePage";
 import SettingsPage from "./SettingsPage";
 
@@ -117,14 +118,13 @@ class LaunchFlow extends Component<PropsType, StateType> {
       .catch((err) => {
         let parsedErr =
           err?.response?.data?.errors && err.response.data.errors[0];
-        if (parsedErr) {
-          err = parsedErr;
-        }
+        err = parsedErr || err.message || JSON.stringify(err);
+
         this.setState({
           saveValuesStatus: `Could not create GitHub Action: ${err}`,
         });
 
-        setCurrentError(err)
+        setCurrentError(err);
       });
   };
 
@@ -141,7 +141,7 @@ class LaunchFlow extends Component<PropsType, StateType> {
     }
 
     api
-      .deployTemplate(
+      .deployAddon(
         "<token>",
         {
           templateName: this.props.currentTemplate.name,
@@ -163,9 +163,13 @@ class LaunchFlow extends Component<PropsType, StateType> {
         this.setState({ saveValuesStatus: "successful" }, () => {
           // redirect to dashboard
           let dst =
-            this.props.currentTemplate.name === "job" ? "jobs" : "applications";
+            this.props.currentTemplate.name === "job"
+              ? "/jobs"
+              : "/applications";
           setTimeout(() => {
-            this.props.history.push(dst);
+            pushFiltered(this.props, dst, ["project_id"], {
+              cluster: currentCluster.name,
+            });
           }, 500);
           window.analytics.track("Deployed Add-on", {
             name: this.props.currentTemplate.name,
@@ -177,13 +181,14 @@ class LaunchFlow extends Component<PropsType, StateType> {
       .catch((err) => {
         let parsedErr =
           err?.response?.data?.errors && err.response.data.errors[0];
-        if (parsedErr) {
-          err = parsedErr;
-        }
+
+        err = parsedErr || err.message || JSON.stringify(err);
+
         this.setState({
-          saveValuesStatus: parsedErr,
+          saveValuesStatus: err,
         });
-        setCurrentError(err.response.data.errors[0]);
+
+        setCurrentError(err);
         window.analytics.track("Failed to Deploy Add-on", {
           name: this.props.currentTemplate.name,
           namespace: selectedNamespace,
@@ -252,6 +257,12 @@ class LaunchFlow extends Component<PropsType, StateType> {
     }
 
     _.set(values, "ingress.provider", provider);
+
+    // pause jobs automatically
+    if (this.props.currentTemplate?.name == "job") {
+      _.set(values, "paused", true);
+    }
+
     var url: string;
     // check if template is docker and create external domain if necessary
     if (this.props.currentTemplate.name == "web") {
@@ -269,19 +280,17 @@ class LaunchFlow extends Component<PropsType, StateType> {
               }
             )
             .then((res) => {
-              resolve(res.data?.external_url);
+              resolve(res?.data?.external_url);
             })
             .catch((err) => {
               let parsedErr =
                 err?.response?.data?.errors && err.response.data.errors[0];
-              if (parsedErr) {
-                err = parsedErr;
-              }
+              err = parsedErr || err.message || JSON.stringify(err);
               this.setState({
                 saveValuesStatus: `Could not create subdomain: ${err}`,
               });
 
-              setCurrentError(err)
+              setCurrentError(err);
             });
         });
 
@@ -311,7 +320,6 @@ class LaunchFlow extends Component<PropsType, StateType> {
       .then((res: any) => {
         if (sourceType === "repo") {
           let env = rawValues["container.env.normal"];
-          console.log(env);
           this.createGHAction(name, selectedNamespace, env);
         }
         // this.props.setCurrentView('cluster-dashboard');
@@ -320,23 +328,22 @@ class LaunchFlow extends Component<PropsType, StateType> {
           setTimeout(() => {
             let dst =
               this.props.currentTemplate.name === "job"
-                ? "jobs"
-                : "applications";
-            this.props.history.push(dst);
+                ? "/jobs"
+                : "/applications";
+            pushFiltered(this.props, dst, ["project_id"], {
+              cluster: currentCluster.name,
+            });
           }, 1000);
         });
       })
       .catch((err: any) => {
         let parsedErr =
           err?.response?.data?.errors && err.response.data.errors[0];
-        console.log(parsedErr);
-        if (parsedErr) {
-          err = parsedErr;
-        }
+        err = parsedErr || err.message || JSON.stringify(err);
         this.setState({
           saveValuesStatus: `Could not deploy template: ${err}`,
         });
-        setCurrentError(err)
+        setCurrentError(err);
       });
   };
 

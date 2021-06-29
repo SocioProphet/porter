@@ -9,8 +9,9 @@ import TabSelector from "components/TabSelector";
 import ExpandedTemplate from "./expanded-template/ExpandedTemplate";
 import Loading from "components/Loading";
 import LaunchFlow from "./launch-flow/LaunchFlow";
+import NoClusterPlaceholder from "../NoClusterPlaceholder";
 
-import hardcodedNames from "./hardcodedNameDict";
+import { hardcodedNames } from "shared/hardcodedNameDict";
 import semver from "semver";
 
 const tabOptions = [
@@ -197,54 +198,49 @@ export default class Templates extends Component<PropsType, StateType> {
     }
   };
 
+  renderContents = () => {
+    if (this.context.currentCluster) {
+      return (
+        <>
+          <TabSelector
+            options={tabOptions}
+            currentTab={this.state.currentTab}
+            setCurrentTab={(value: string) =>
+              this.setState({
+                currentTab: value,
+                currentTemplate: null,
+              })
+            }
+          />
+          {this.renderTabContents()}
+        </>
+      );
+    } else if (this.context.currentCluster?.id === -1) {
+      return <Loading />;
+    } else if (!this.context.currentCluster) {
+      return (
+        <>
+          <Banner>
+            <i className="material-icons">error_outline</i>
+            No cluster connected to this project.
+          </Banner>
+          <NoClusterPlaceholder />
+        </>
+      );
+    }
+  };
+
   render() {
     if (!this.state.isOnLaunchFlow || !this.state.currentTemplate) {
       return (
         <TemplatesWrapper>
           <TitleSection>
             <Title>Launch</Title>
-            <a
-              href="https://docs.getporter.dev/docs/add-ons"
-              target="_blank"
-            >
+            <a href="https://docs.getporter.dev/docs/add-ons" target="_blank">
               <i className="material-icons">help_outline</i>
             </a>
           </TitleSection>
-          {this.context.currentCluster ? (
-            <>
-              <TabSelector
-                options={tabOptions}
-                currentTab={this.state.currentTab}
-                setCurrentTab={(value: string) =>
-                  this.setState({
-                    currentTab: value,
-                    currentTemplate: null,
-                  })
-                }
-              />
-              {this.renderTabContents()}
-            </>
-          ) : (
-            <>
-              <Banner>
-                <i className="material-icons">error_outline</i>
-                No cluster connected to this project.
-              </Banner>
-              <StyledStatusPlaceholder>
-                You need to connect a cluster to use Porter.
-                <Highlight
-                  onClick={() => {
-                    this.context.setCurrentModal(
-                      "ClusterInstructionsModal",
-                      {}
-                    );
-                  }}
-                >
-                  + Connect an existing cluster
-                </Highlight>
-              </StyledStatusPlaceholder>
-            </>
-          )}
+          {this.renderContents()}
         </TemplatesWrapper>
       );
     } else {
@@ -280,7 +276,7 @@ const Placeholder = styled.div`
 const Banner = styled.div`
   height: 40px;
   width: 100%;
-  margin: 30px 0 30px;
+  margin: 30px 0 38px;
   font-size: 13px;
   display: flex;
   border-radius: 5px;
@@ -425,7 +421,7 @@ const TitleSection = styled.div`
       align-items: center;
       margin-bottom: -2px;
       font-size: 18px;
-      margin-left: 18px;
+      margin-left: 15px;
       color: #858faaaa;
       :hover {
         color: #aaaabb;
