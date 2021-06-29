@@ -31,6 +31,7 @@ type ServerConf struct {
 	IsLocal              bool          `env:"IS_LOCAL,default=false"`
 	IsTesting            bool          `env:"IS_TESTING,default=false"`
 	AppRootDomain        string        `env:"APP_ROOT_DOMAIN,default=porter.run"`
+	AppForbiddenNetworks []string      `env:"APP_FORBIDDEN_NETWORKS,default=10.0.0.0/8;192.168.0.0/16"`
 
 	DefaultApplicationHelmRepoURL string `env:"HELM_APP_REPO_URL,default=https://charts.dev.getporter.dev"`
 	DefaultAddonHelmRepoURL       string `env:"HELM_ADD_ON_REPO_URL,default=https://chart-addons.dev.getporter.dev"`
