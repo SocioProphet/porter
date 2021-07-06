@@ -76,7 +76,7 @@ func (app *App) HandleCreateDNSRecord(w http.ResponseWriter, r *http.Request) {
 
 	_record := domain.DNSRecord(*record)
 
-	err = _record.CreateDomain(app.InClusterAgent.Clientset, app.ServerConf.AppForbiddenNetworks...)
+	err = _record.CreateDomain(app.IngressAgent.Clientset, app.ServerConf.AppForbiddenNetworks...)
 
 	if err != nil {
 		app.handleErrorInternal(err, w)
